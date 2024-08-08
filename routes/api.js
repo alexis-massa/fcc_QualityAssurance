@@ -8,13 +8,18 @@ module.exports = function (app) {
 
   app.route('/api/check')
     .post((req, res) => {
+      // missing values
+      if (!req.body.puzzleString || !req.body.coordinate || !req.body.value) return res.json({ error: 'Required field(s) missing' })
       let puzzleString = req.body.puzzle
-      let [rowO, colO] = req.body.coordinate.split('')
-      let value = req.body.value
 
-      // row, col as indexes
+      // row, col and convert to indexes
+      let [rowO, colO] = req.body.coordinate.split('')
       let row = solver.letterToNumber(rowO) - 1
       let col = parseInt(colO - 1)
+      if (row > 8 || row < 0 || col > 8 || col < 0) return res.json({ error: 'Invalid coordinate' })
+
+      let value = req.body.value
+      if (value > 8 || value < 0) return res.json({ error: 'Invalid value' })
 
       let result = { valid: true }
       if (!solver.checkRowPlacement(puzzleString, row, col, value)) {
@@ -23,24 +28,32 @@ module.exports = function (app) {
       }
       if (!solver.checkColPlacement(puzzleString, row, col, value)) {
         result.valid = false
-        if (result.conflict) result.conflict.push("col")
-        else result['conflict'] = ['col']
+        if (result.conflict) result.conflict.push("col"); else result['conflict'] = ['col']
       }
       if (!solver.checkRegionPlacement(puzzleString, row, col, value)) {
         result.valid = false
-        if (result.conflict) result.conflict.push("region")
-        else result['conflict'] = ['region']
+        if (result.conflict) result.conflict.push("region"); else result['conflict'] = ['region']
       }
-      // { "valid": true }
-      //  { "valid": false, "conflict": [ "row", "column" ] } 
-      console.log(result)
-      res.json(result)
+      // valid response : { "valid": true }
+      // invalide response :   { "valid": false, "conflict": [ "row", "column" ] } 
+      return res.json(result)
 
     })
 
   app.route('/api/solve')
     .post((req, res) => {
+
+      if (!req.body.puzzle) return res.json({ error: 'Required field missing' })
+
       let puzzleString = req.body.puzzle
-      solver.validate(puzzleString)
+
+      // Validate starting sudoku
+      let err = solver.validate(puzzleString)
+      if (err) return res.json({ error: err })
+
+      // Solve
+      let solved = solver.solve(puzzleString)
+      if (solved) return res.json({ solution: solved })
+      else return res.json({ error: 'Unknown error' })
     })
 }
